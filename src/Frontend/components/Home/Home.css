@@ -47,13 +47,21 @@
 
 .home-btn-user
 {
-    border: none;
-    font-size: 25px;
-    cursor: pointer;
-    
+   line-height: 1;
+   display: inline-flex;
+   border: none;
+   cursor: pointer;
+   align-items: center;
+   background-color: rgb(168, 111, 5);
+   color: #fff;
+   border-radius: 10rem;
+   font-weight: 600;
+   padding: 0.75rem 1.5rem;
+   padding-left: 20px;
+   overflow: hidden;
 }
 
 
 .home-btn-user:hover {
-    background-color: #d2e5f9;
+    background-color: #feb509;
 }

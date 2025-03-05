@@ -1,4 +1,4 @@
-import React ,{useContext} from 'react'
+import React  from 'react'
 import { Container,Form,Button,Card } from 'react-bootstrap'
 import {Link,useNavigate} from 'react-router-dom'
 import Signup_background from '../../assets/signup_background.jpg'
@@ -7,7 +7,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from "yup"
 import { ToastContainer,toast } from 'react-toastify'
 import "react-toastify/dist/ReactToastify.css";
-import { AuthContext } from './context/AuthContext'
+
 
 
 
@@ -15,13 +15,12 @@ const schema = yup.object().shape(
   {
     name: yup.string().min(3,"Name must be at 3 Characters").required("Name is required"),
     email: yup.string().email("Invalid email Format").required("Email is required"),
-    role: yup.string().oneOf(['Student','exam_creator'],"select a valid role").required("Role is required"),
-    password: yup.string().min(6,"length must be of 6").matches(/[0-9]/,"password must contain atleast one number").required('password is required'),
+    role: yup.string().oneOf(['Student','Exam_creator'],"select a valid role").required("Role is required"),
+    password: yup.string().min(8,"length must be of 8").matches(/[0-9]/,"password must contain atleast one number").required('password is required'),
     confirmPassword: yup.string().oneOf([yup.ref("password")],"Password doesn't match").required("Confirm password is required")
   }
 );
 const Signup = () => {
-  const {login} = useContext(AuthContext);
   const navigate = useNavigate();
   const {
     register,
@@ -29,17 +28,41 @@ const Signup = () => {
     formState:{errors},    
   } = useForm({resolver:yupResolver(schema)});
   
-  const onSubmit = (data) =>
-  {
-    delete data.confirmPassword;
-    login(data);
-    toast.success("Signup Successful");
-
-    setTimeout(() =>
-    {
-       navigate('/login');
-    },1500);
+  const onSubmit = async (data) => {
+    console.log(data)
+    try {
+      delete data.confirmPassword;
+      console.log(data)
+      const res = await fetch("http://localhost:5000/api/route/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+        
+      });
+  
+      let responseData;
+      try {
+        responseData = await res.json(); 
+      } catch (error) {
+        responseData = { message: "Unexpected server response" };
+      }
+  
+      if (res.ok) {
+        toast.success("Signup successful!");
+        setTimeout(() => {
+          navigate("/login");
+        }, 1500);
+      } else {
+        toast.error(responseData.message || "Signup failed");
+      }
+    } catch (error) {
+      console.error("Signup Error:", error);
+      toast.error("Something went wrong");
+    }
   };
+  
   return (
     <div className='d-flex flex-row'>
 
@@ -67,7 +90,7 @@ const Signup = () => {
              <Form.Select {...register('role')}>
               <option value="">Choose role</option>
               <option value="Student">Student</option>
-              <option value="exam_creator">Exam creator</option>
+              <option value="Exam_creator">Exam creator</option>
              </Form.Select>
              {errors.role && <small className='text-danger'>{errors.role.message}</small>}
           </Form.Group>
@@ -88,12 +111,12 @@ const Signup = () => {
         </Form>
 
         <p className='mt-3 mb-3 text-center'>Already have an account?</p>
-        <Link to="/login">
-        <Button type='button' variant='success' style={{marginLeft:"180px"}}>Login</Button>
+        <Link to="/login" style={{display:"inline",marginLeft:"180px",width:"100px"}}>
+        <Button type='button' variant='success' style={{width:"100px"}} >Login</Button>
         </Link>
       </Card>
 
-      <ToastContainer position='top-left' autoClose={3000}/>
+      <ToastContainer position='top-right' autoClose={3000}/>
     </Container>
     <div>
         <img src={Signup_background} alt='not_displayed' style={{height:'100vh'}}/>

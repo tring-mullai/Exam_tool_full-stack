@@ -1,12 +1,13 @@
 import React from 'react'
-import './Exam_center.css'
+import { Navbar } from 'react-bootstrap'
 
-const Exam_center = () => {
+const Exam_creator = () => {
   return (
     <div>
-      
+      <Navbar/>
     </div>
   )
 }
 
-export default Exam_center
+export default Exam_creator
+

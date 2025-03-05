@@ -1,4 +1,4 @@
-import React ,{useContext} from 'react'
+import React from 'react'
 import { Container, Form, Button, Card } from 'react-bootstrap';
 import { Link ,useNavigate} from 'react-router-dom';
 import login_img from '../../assets/login_background.png'
@@ -7,7 +7,6 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from "yup"
 import { ToastContainer,toast } from 'react-toastify'
 import "react-toastify/dist/ReactToastify.css";
-import { AuthContext } from './context/AuthContext'
 
 const schema = yup.object().shape(
   {
@@ -18,7 +17,7 @@ const schema = yup.object().shape(
 
 
 const Login = () => {
-  const { login } = useContext(AuthContext);
+  
   const navigate = useNavigate();
   const {
       register,
@@ -27,14 +26,41 @@ const Login = () => {
     } = useForm({resolver:yupResolver(schema)});
 
 
-    const onSubmit = (data) => {
-    login(data); 
-    toast.success("Login successful!");
+    const onSubmit = async (data) => {
+      try {
+        const res = await fetch("http://localhost:5000/api/route/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
     
-    // setTimeout(() => {
-    //   navigate("/dashboard"); 
-    // }, 1500);
-  };
+        const responseData = await res.json();
+    
+        if (res.ok) {
+          
+          localStorage.setItem("token", responseData.token);
+    
+          toast.success("Login successful!");
+    
+          
+          setTimeout(() => {
+            if (responseData.role === "Student") {
+              navigate("/student_dashboard");
+            } else if (responseData.role === "Exam_creator") {
+              navigate("/exam_creator");
+            }
+          }, 1500);
+        } else {
+          toast.error(responseData.message); 
+        }
+      } catch (error) {
+        console.error("Login Error:", error);
+        toast.error("Something went wrong. Please try again.");
+      }
+    };
+    
 
   return (
     <div  className='d-flex flex-row '>
@@ -66,8 +92,8 @@ const Login = () => {
     </Form>
      
      <p className='text-center mt-3'>Don't have an account?</p>
-     <Link to="/signup">
-     <Button type='button' variant='success' style={{marginLeft:"120px"}}>Sign Up</Button>
+     <Link to="/signup" style={{display:"inline",marginLeft:"120px",width:"100px"}} >
+     <Button type='button' variant='success' style={{width:"100px"}}>Sign Up</Button>
      </Link>
     </Card>
 
