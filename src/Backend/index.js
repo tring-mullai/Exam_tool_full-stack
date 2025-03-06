@@ -6,10 +6,7 @@ const routes = require('./routes/Routes')
 const app = express()
 
 app.use(express.json());
-app.use(cors({
-    origin: 'http://localhost:5174', // Allow only your frontend
-    credentials: true // Allow cookies, authentication headers
-}));
+app.use(cors());
 app.use("/api/route",routes)
 
 

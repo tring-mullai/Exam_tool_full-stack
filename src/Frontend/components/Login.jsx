@@ -41,16 +41,13 @@ const Login = () => {
         if (res.ok) {
           
           localStorage.setItem("token", responseData.token);
+          localStorage.setItem("role", responseData.role);
     
           toast.success("Login successful!");
     
           
           setTimeout(() => {
-            if (responseData.role === "Student") {
-              navigate("/student_dashboard");
-            } else if (responseData.role === "Exam_creator") {
-              navigate("/exam_creator");
-            }
+            navigate('/main_dashboard')
           }, 1500);
         } else {
           toast.error(responseData.message); 
