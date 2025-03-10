@@ -163,5 +163,65 @@ router.delete("/exams/:id", async (req, res) => {
     }
 });
 
+router.get("/exams/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const result = await pool.query("SELECT * FROM exams WHERE id = $1", [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Exam not found" });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Database error:", error.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.post("/scores", authMiddleware, async (req, res) => {
+  const { examId, score, answers } = req.body;
+  const userId = req.user.id;
+  
+  try {
+    // Check if the exam exists
+    const examResult = await pool.query("SELECT title FROM exams WHERE id = $1", [examId]);
+    
+    if (examResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Exam not found" });
+    }
+    
+    // Save the score
+    const result = await pool.query(
+      "INSERT INTO scores (user_id, exam_id, score, answers, exam_title) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [userId, examId, score, JSON.stringify(answers), examResult.rows[0].title]
+    );
+    
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error("Database error:", error.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/scores", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  
+  try {
+    const result = await pool.query(`
+      SELECT s.id, s.score, s.created_at, s.exam_title
+      FROM scores s
+      WHERE s.user_id = $1
+      ORDER BY s.created_at DESC
+    `, [userId]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error("Database error:", error.message);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 
 module.exports = router;

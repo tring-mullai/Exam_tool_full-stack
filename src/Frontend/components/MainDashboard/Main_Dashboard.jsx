@@ -1,6 +1,6 @@
-import React, { useState, useEffect, act } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
-import { Container, Row, Col, Card, Button, Modal, Form } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Modal, Form, ProgressBar } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import header_logo from '../../../assets/header_logo.jpg';
 import axios from 'axios';
@@ -10,14 +10,33 @@ import 'react-toastify/dist/ReactToastify.css';
 const MainDashboard = () => {
   const [activeTab, setActiveTab] = useState("Home");
   const [exams, setExams] = useState([]);
+  const [scores, setScores] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [currentExam, setCurrentExam] = useState({ id: null, title: '', description: '', duration: '', questions: [] });
   const navigate = useNavigate();
   
+  
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [examInProgress, setExamInProgress] = useState(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [examSubmitted, setExamSubmitted] = useState(false);
 
   useEffect(() => {
-    fetchExams();  
+    fetchExams();
+    fetchScores();
   }, []);
+
+  useEffect(() => {
+    let timer;
+    if (examInProgress && timeLeft > 0 && !examSubmitted) {
+      timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+    } else if (timeLeft === 0) {
+      handleSubmitExam();
+    }
+    return () => clearTimeout(timer);
+  }, [timeLeft, examSubmitted, examInProgress]);
 
   const fetchExams = async () => {
     try {
@@ -30,7 +49,20 @@ const MainDashboard = () => {
       setExams(response.data.data || []);
     } catch (error) {
       toast.error('Failed to fetch exams');
-      // console.error("Fetch Exams Error:", error);
+    }
+  };
+
+  const fetchScores = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/route/scores', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setScores(response.data.data || []);
+    } catch (error) {
+      toast.error('Failed to fetch scores');
     }
   };
 
@@ -38,7 +70,6 @@ const MainDashboard = () => {
     const { name, value } = e.target;
     setCurrentExam({ ...currentExam, [name]: value });
   };
-  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -104,7 +135,6 @@ const MainDashboard = () => {
     setShowModal(true);
   };
 
-
   const handleDelete = async (id) => {
     try {
       const token = localStorage.getItem('token');
@@ -121,10 +151,90 @@ const MainDashboard = () => {
     }
   };
 
-  const handleStartExam = (examId) => {
-    toast.info(`Starting exam with ID: ${examId}`);
-    // You can navigate to exam page here
-    // navigate(`/take-exam/${examId}`);
+  const handleStartExam = async (exam) => {
+    let examToStart = { ...exam };
+    
+    // Parse questions if they're stored as a JSON string
+    if (examToStart.questions && typeof examToStart.questions === 'string') {
+      try {
+        examToStart.questions = JSON.parse(examToStart.questions);
+      } catch (error) {
+        console.error("Error parsing questions JSON:", error);
+        examToStart.questions = [];
+      }
+    }
+    
+    // Initialize exam state
+    setExamInProgress(examToStart);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswers({});
+    setTimeLeft(examToStart.duration * 60); // Convert minutes to seconds
+    setExamSubmitted(false);
+    
+    // Show the exam modal
+    setShowExamModal(true);
+  };
+
+  const handleAnswerSelect = (questionIndex, answerIndex) => {
+    setSelectedAnswers({
+      ...selectedAnswers,
+      [questionIndex]: answerIndex
+    });
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < examInProgress.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+
+  const handleSubmitExam = async () => {
+    if (!examSubmitted && examInProgress) {
+      setExamSubmitted(true);
+      
+      // Calculate score
+      let correctAnswers = 0;
+      examInProgress.questions.forEach((question, index) => {
+        if (selectedAnswers[index] === question.correct_answer) {
+          correctAnswers++;
+        }
+      });
+      
+      const score = (correctAnswers / examInProgress.questions.length) * 100;
+      
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:5000/api/route/scores', {
+          examId: examInProgress.id,
+          score: score,
+          answers: selectedAnswers
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        toast.success('Exam submitted successfully!');
+        setShowExamModal(false);
+        fetchScores();
+        setActiveTab("Scores"); // Switch to scores tab
+      } catch (error) {
+        toast.error('Failed to submit exam');
+        console.error(error);
+      }
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
   const handleLogout = () => {
@@ -219,7 +329,7 @@ const MainDashboard = () => {
               <div className="col-md-4 mb-3">
                 <Card className="text-center h-100">
                   <Card.Body>
-                    <Card.Title>0</Card.Title>
+                    <Card.Title>{scores.length}</Card.Title>
                     <Card.Text>Completed Exams</Card.Text>
                   </Card.Body>
                 </Card>
@@ -227,7 +337,11 @@ const MainDashboard = () => {
               <div className="col-md-4 mb-3">
                 <Card className="text-center h-100">
                   <Card.Body>
-                    <Card.Title>0</Card.Title>
+                    <Card.Title>
+                      {scores.length > 0 
+                        ? (scores.reduce((sum, score) => sum + parseFloat(score.score), 0) / scores.length).toFixed(1) 
+                        : 0}%
+                    </Card.Title>
                     <Card.Text>Average Score</Card.Text>
                   </Card.Body>
                 </Card>
@@ -248,9 +362,9 @@ const MainDashboard = () => {
                       <Card.Text>{exam.description}</Card.Text>
                       <Card.Text>Duration: {exam.duration} minutes</Card.Text>
                       
-                       <Card.Text>Questions: {exam.questions ? exam.questions.length : 0}</Card.Text>
+                       <Card.Text>Questions: {exam.questions ? (typeof exam.questions === 'string' ? JSON.parse(exam.questions).length : exam.questions.length) : 0}</Card.Text>
 
-                      <Button variant="success" onClick={() => handleStartExam(exam.id)}>Start Exam</Button>
+                      <Button variant="success" onClick={() => handleStartExam(exam)}>Start Exam</Button>
                     </Card.Body>
                   </Card>
                 ))
@@ -279,7 +393,7 @@ const MainDashboard = () => {
                       <Card.Text>{exam.description}</Card.Text>
                       <Card.Text>Duration: {exam.duration} minutes</Card.Text>
                      
-                      <Card.Text>Questions: {exam.questions ? exam.questions.length : 0}</Card.Text>
+                      <Card.Text>Questions: {exam.questions ? (typeof exam.questions === 'string' ? JSON.parse(exam.questions).length : exam.questions.length) : 0}</Card.Text>
 
                       <Button variant="warning" className="me-2" onClick={() => handleEdit(exam)}>Edit</Button>
                       <Button variant="danger" onClick={() => handleDelete(exam.id)}>Delete</Button>
@@ -427,12 +541,110 @@ const MainDashboard = () => {
         {activeTab === "Scores" && (
           <>
             <h5>Exam Scores</h5>
-            <p>No exam attempts found. Start an exam to see your scores here.</p>
+            <div className="mt-4">
+              {scores.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-striped">
+                    <thead>
+                      <tr>
+                        <th>Exam</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scores.map((score) => (
+                        <tr key={score.id}>
+                          <td>{score.exam_title}</td>
+                          <td>{parseFloat(score.score).toFixed(2)}%</td>
+                          <td>{new Date(score.created_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>No exam attempts found. Start an exam to see your scores here.</p>
+              )}
+            </div>
           </>
         )}
       </div>
     </Col>
   </Row>
+  
+  {/* Exam Taking Modal */}
+  <Modal show={showExamModal} onHide={() => setShowExamModal(false)} size="lg" backdrop="static" keyboard={false}>
+    {examInProgress && (
+      <>
+        <Modal.Header>
+          <Modal.Title>{examInProgress.title}</Modal.Title>
+          <div className="ms-auto text-danger">Time Left: {formatTime(timeLeft)}</div>
+        </Modal.Header>
+        <Modal.Body>
+          <ProgressBar now={(currentQuestionIndex + 1) / examInProgress.questions.length * 100} 
+                      label={`${Math.round((currentQuestionIndex + 1) / examInProgress.questions.length * 100)}%`} 
+                      className="mb-4" />
+          
+          <h5>Question {currentQuestionIndex + 1} of {examInProgress.questions.length}</h5>
+          <p className="mt-3 mb-4">{examInProgress.questions[currentQuestionIndex].text}</p>
+          
+          <Form>
+            {examInProgress.questions[currentQuestionIndex].options.map((option, index) => (
+              <Form.Check
+                key={index}
+                type="radio"
+                id={`question-${currentQuestionIndex}-option-${index}`}
+                label={option}
+                name={`question-${currentQuestionIndex}`}
+                className="mb-3"
+                checked={selectedAnswers[currentQuestionIndex] === index}
+                onChange={() => handleAnswerSelect(currentQuestionIndex, index)}
+              />
+            ))}
+          </Form>
+          
+          <div className="mt-4 d-flex flex-wrap gap-2">
+            {examInProgress.questions.map((_, index) => (
+              <Button
+                key={index}
+                variant={selectedAnswers[index] !== undefined ? "success" : "outline-secondary"}
+                size="sm"
+                onClick={() => setCurrentQuestionIndex(index)}
+                className={currentQuestionIndex === index ? "fw-bold" : ""}
+              >
+                {index + 1}
+              </Button>
+            ))}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={handlePrevQuestion} 
+            disabled={currentQuestionIndex === 0}
+          >
+            Previous
+          </Button>
+          
+          {currentQuestionIndex < examInProgress.questions.length - 1 ? (
+            <Button variant="primary" onClick={handleNextQuestion}>
+              Next
+            </Button>
+          ) : (
+            <Button 
+              variant="success" 
+              onClick={handleSubmitExam}
+              disabled={examSubmitted}
+            >
+              Submit Exam
+            </Button>
+          )}
+        </Modal.Footer>
+      </>
+    )}
+  </Modal>
+  
   <ToastContainer />
 </Container>
  );
